@@ -73,6 +73,7 @@ class Coordinator {
       totalTiles: prev ? prev.totalTiles : 0,
       joinedAt: Date.now(),
     };
+    if (role === 'vol' && c.name.length < 2) c.name = 'Voluntário ' + c.label;
     this.clients.set(socket.id, c);
     socket.join(role === 'host' ? 'dash' : 'vol');
     socket.emit('welcome', { role, index, label: c.label, threads: c.threads });

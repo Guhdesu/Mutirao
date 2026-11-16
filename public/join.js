@@ -16,21 +16,41 @@ let joined = false;
 let wakeLock = null;
 let me = null;
 
+let connected = false;
+const nameValue = () => $('name').value.trim().replace(/\s+/g, ' ');
+const nameOk = () => nameValue().length >= 2;
+function refreshGo() {
+  $('go').disabled = !connected || !nameOk();
+  $('go').textContent = connected ? 'Participar' : 'Conectando…';
+  if (nameOk()) { $('nameErr').hidden = true; $('name').classList.remove('invalid'); }
+}
+$('name').addEventListener('input', refreshGo);
+$('name').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); join(); } });
+
 socket.on('connect', () => {
-  $('go').disabled = false;
-  $('go').textContent = 'Participar';
+  connected = true;
+  refreshGo();
   if (joined) hello();
-  else if (qs.get('auto')) join();
+  else if (qs.get('auto') && nameOk()) join();
 });
 socket.on('disconnect', () => setState('Conexão perdida, reconectando…', false));
 
 function hello() {
-  socket.emit('hello', { role: 'vol', key, name: $('name').value, threads, ua: navigator.userAgent, active: true });
+  socket.emit('hello', { role: 'vol', key, name: nameValue(), threads, ua: navigator.userAgent, active: true });
 }
 
 function join() {
+  if (joined) return;
+  if (!nameOk()) {
+    $('nameErr').hidden = false;
+    $('name').classList.add('invalid');
+    $('name').focus();
+    return;
+  }
+  if (!connected) return;
   joined = true;
-  store('mutirao.name', $('name').value.trim());
+  store('mutirao.name', nameValue());
+  $('hi').textContent = 'Olá, ' + nameValue();
   if (!pool) pool = new WorkerPool(socket, threads, onTileDone);
   hello();
   $('intro').hidden = true;

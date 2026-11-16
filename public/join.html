@@ -33,6 +33,8 @@
   .bar { height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; margin-top: 10px; }
   .bar i { display: block; height: 100%; width: 0; background: var(--ink); transition: width .2s linear; }
   .note { font-size: 13px; color: var(--faint); margin: 0; }
+  .err { font-size: 13px; color: #E8A27A; margin: 8px 0 0; }
+  input.invalid { border-color: #E8A27A; }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -46,8 +48,9 @@
   </header>
 
   <section id="intro" class="card">
-    <label class="f" for="name">Seu nome ou apelido (aparece no placar)</label>
-    <input id="name" type="text" maxlength="24" autocomplete="nickname" placeholder="opcional">
+    <label class="f" for="name">Seu nome (aparece no placar e na imagem)</label>
+    <input id="name" type="text" maxlength="24" autocomplete="given-name" autocapitalize="words" enterkeyhint="go" placeholder="Ex.: Ana" required aria-describedby="nameErr">
+    <p class="err" id="nameErr" hidden>Digite seu nome para participar.</p>
     <div style="height:14px"></div>
     <button class="btn primary" id="go" type="button" disabled>Conectando…</button>
   </section>
@@ -56,6 +59,7 @@
     <div class="me">
       <div class="badge" id="badge">?</div>
       <div>
+        <p class="muted" id="hi"></p>
         <p class="big">Você é o dispositivo <span id="letter" class="num">?</span></p>
         <p class="muted" id="sub">—</p>
       </div>
