@@ -106,29 +106,36 @@ function buildTiles(p) {
   return out;
 }
 
+// Limpa tudo, inclusive os pixels guardados: só quando começa um trabalho novo.
 function clearImage() {
   octx.clearRect(0, 0, W, H);
+  paintBackground();
+  $('trackFill').style.width = '0%';
+  $('done').textContent = '0';
+}
+
+// Pinta só o canvas visível (fundo e grade). Não mexe no buffer do fractal.
+function paintBackground() {
   ctx.fillStyle = '#0A1013';
   ctx.fillRect(0, 0, W, H);
   ctx.strokeStyle = 'rgba(255,255,255,0.035)';
   ctx.lineWidth = 1;
   for (let x = 50; x < W; x += 50) { ctx.beginPath(); ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, H); ctx.stroke(); }
   for (let y = 50; y < H; y += 50) { ctx.beginPath(); ctx.moveTo(0, y + .5); ctx.lineTo(W, y + .5); ctx.stroke(); }
-  $('trackFill').style.width = '0%';
-  $('done').textContent = '0';
 }
 
 function drawTile(i) {
   const t = tilesInfo[i], o = owners[i];
   if (!t || !o) return;
   const col = deviceColor(o.index);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#0A1013';
+  ctx.fillRect(t.x, t.y, t.w, t.h);
   if (view === 'img') {
     ctx.drawImage(off, t.x, t.y, t.w, t.h, t.x, t.y, t.w, t.h);
     return;
   }
   if (view === 'who') {
-    ctx.fillStyle = '#0A1013';
-    ctx.fillRect(t.x, t.y, t.w, t.h);
     ctx.fillStyle = col;
     ctx.fillRect(t.x + 1, t.y + 1, t.w - 2, t.h - 2);
   } else {
@@ -150,9 +157,7 @@ function drawTile(i) {
 }
 
 function redrawAll() {
-  const keep = owners.slice();
-  clearImage();
-  owners = keep;
+  paintBackground();
   for (let i = 0; i < owners.length; i++) if (owners[i]) drawTile(i);
   updateProgress();
 }
