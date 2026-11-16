@@ -1,0 +1,45 @@
+/* Mutirão: mesma base do slide (fundo quase preto, título leve, traço de acento),
+   sem brilho, sem gradiente. A cor de acento aparece só onde importa. */
+:root {
+  --bg: #0E1619;
+  --panel: #141E22;
+  --panel-2: #18242A;
+  --line: #22302F;
+  --line-2: #2E3E3F;
+  --ink: #F1F4F3;
+  --muted: #9AA6A6;
+  --faint: #66736F;
+  --accent: #5CCB98;
+  --accent-ink: #0B1A14;
+  --font: "Lexend", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font); font-weight: 300; font-size: 16px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+button, input, select { font: inherit; }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 500; }
+.eyebrow { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); font-weight: 400; margin: 0 0 6px; }
+.rule { width: 56px; height: 4px; background: var(--accent); border: 0; margin: 14px 0 0; border-radius: 1px; }
+h1 { font-weight: 300; margin: 0; line-height: 1.05; letter-spacing: -.01em; }
+h2 { font-size: 13px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 14px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; }
+.muted { color: var(--muted); }
+.faint { color: var(--faint); }
+
+.btn { border: 1px solid var(--line-2); background: transparent; color: var(--ink); border-radius: 8px; padding: 10px 16px; font-weight: 400; cursor: pointer; transition: background .15s, border-color .15s; }
+.btn:hover:not(:disabled) { background: var(--panel-2); border-color: var(--muted); }
+.btn:disabled { opacity: .4; cursor: default; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 500; }
+.btn.primary:hover:not(:disabled) { background: #6FD6A6; border-color: #6FD6A6; }
+.btn:focus-visible, .seg input:focus-visible + span, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: 8px; overflow: hidden; }
+.seg label { display: flex; cursor: pointer; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg span { padding: 6px 12px; font-size: 14px; color: var(--muted); border-right: 1px solid var(--line-2); }
+.seg label:last-child span { border-right: 0; }
+.seg input:checked + span { background: var(--ink); color: var(--bg); font-weight: 400; }
+
+.chip { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 26px; padding: 0 6px; border-radius: 6px; color: #0B1216; font-family: var(--mono); font-weight: 500; font-size: 13px; }

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0E1619">
+<title>Mutirão · participar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Lexend:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+  main { max-width: 440px; margin: 0 auto; padding: 32px 16px calc(32px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 20px; }
+  h1 { font-size: 38px; }
+  .lead { color: var(--muted); margin: 14px 0 0; }
+  label.f { display: block; font-size: 14px; color: var(--muted); margin-bottom: 6px; }
+  input[type=text] { width: 100%; background: var(--panel-2); color: var(--ink); border: 1px solid var(--line-2); border-radius: 8px; padding: 12px 14px; font-size: 16px; }
+  .btn { width: 100%; padding: 14px 16px; font-size: 16px; }
+  .me { display: flex; align-items: center; gap: 16px; }
+  .badge { width: 72px; height: 72px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-weight: 500; font-size: 32px; color: #0B1216; flex: none; }
+  .me p { margin: 0; }
+  .me .big { font-size: 20px; font-weight: 400; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .stats div { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+  .stats span { display: block; font-size: 13px; color: var(--muted); }
+  .stats b { font-size: 28px; }
+  .state { display: flex; align-items: center; gap: 10px; font-size: 15px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--faint); flex: none; }
+  .dot.on { background: var(--accent); }
+  .tile { display: flex; gap: 14px; align-items: center; }
+  .tile canvas { width: 96px; height: 96px; border-radius: 6px; background: #0A1013; image-rendering: pixelated; flex: none; }
+  .tile p { margin: 0; font-size: 13.5px; color: var(--muted); }
+  .bar { height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; margin-top: 10px; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--ink); transition: width .2s linear; }
+  .note { font-size: 13px; color: var(--faint); margin: 0; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">Mutirão · computação voluntária</p>
+    <h1>Doe um pouco de processamento</h1>
+    <hr class="rule">
+    <p class="lead">Seu celular vai calcular pedaços de uma imagem que aparece no projetor. Não instala nada e para quando você fechar a página.</p>
+  </header>
+
+  <section id="intro" class="card">
+    <label class="f" for="name">Seu nome ou apelido (aparece no placar)</label>
+    <input id="name" type="text" maxlength="24" autocomplete="nickname" placeholder="opcional">
+    <div style="height:14px"></div>
+    <button class="btn primary" id="go" type="button" disabled>Conectando…</button>
+  </section>
+
+  <section id="live" class="card" hidden>
+    <div class="me">
+      <div class="badge" id="badge">?</div>
+      <div>
+        <p class="big">Você é o dispositivo <span id="letter" class="num">?</span></p>
+        <p class="muted" id="sub">—</p>
+      </div>
+    </div>
+    <div style="height:18px"></div>
+    <div class="state"><span class="dot" id="dot"></span><span id="stateText">Aguardando o host iniciar o mutirão</span></div>
+    <div class="bar"><i id="bar"></i></div>
+    <div style="height:18px"></div>
+    <div class="stats">
+      <div><span>Blocos nesta rodada</span><b class="num" id="jobTiles">0</b></div>
+      <div><span>Blocos no total</span><b class="num" id="allTiles">0</b></div>
+    </div>
+    <div style="height:18px"></div>
+    <div class="tile">
+      <canvas id="last" width="50" height="50"></canvas>
+      <p>Último bloco que o seu aparelho calculou. Procure a sua letra na imagem do projetor.</p>
+    </div>
+    <div style="height:18px"></div>
+    <button class="btn" id="stop" type="button">Parar de doar</button>
+  </section>
+
+  <p class="note">Deixe esta tela aberta e o celular desbloqueado durante a demonstração. Se a tela apagar, os seus blocos passam para outro aparelho automaticamente.</p>
+</main>
+<script src="/socket.io/socket.io.js"></script>
+<script src="fractal.js"></script>
+<script src="pool.js"></script>
+<script src="colors.js"></script>
+<script src="join.js"></script>
+</body>
+</html>
