@@ -40,18 +40,30 @@ if (/^(localhost|127\.)/.test(location.hostname)) {
 }
 
 // ---------- conexão ----------
+// Identificador deste navegador: se a conexão cair e voltar, ele continua sendo o host.
+let dashKey = null;
+try { dashKey = localStorage.getItem('mutirao.dash'); if (!dashKey) { dashKey = Math.random().toString(36).slice(2); localStorage.setItem('mutirao.dash', dashKey); } } catch (e) { dashKey = Math.random().toString(36).slice(2); }
+
 socket.on('connect', () => {
   $('conn').textContent = 'conectado';
   if (isViewer) socket.emit('viewer');
-  else socket.emit('hello', { role: 'host', ua: navigator.userAgent });
+  else socket.emit('hello', { role: 'host', key: dashKey, ua: navigator.userAgent });
 });
 socket.on('disconnect', () => { $('conn').textContent = 'desconectado, tentando de novo…'; });
-socket.on('role', (m) => {
-  if (m.role === 'viewer') {
-    document.body.classList.add('viewer');
-    $('conn').textContent = 'outro painel assumiu como host';
-  }
-});
+
+function setRole(role) {
+  const standby = role === 'standby';
+  document.body.classList.toggle('viewer', standby || isViewer);
+  if (standby && pool) pool.clear();
+  $('conn').textContent = standby ? 'em espera: outro aparelho é o painel principal' : 'conectado · painel principal';
+}
+socket.on('welcome', (m) => setRole(m.role));
+socket.on('role', (m) => setRole(m.role));
+const claimBtn = $('claimBtn');
+if (claimBtn) {
+  if (isViewer) claimBtn.remove();
+  else claimBtn.onclick = () => socket.emit('claim');
+}
 
 socket.on('runs', (r) => { runs = r || []; renderResults(); });
 

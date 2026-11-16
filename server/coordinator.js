@@ -3,7 +3,7 @@
 const { buildTiles, buildParams } = require('./job');
 
 const PREFETCH = 2;          // blocos em andamento por thread (esconde a latência da rede)
-const LEASE_BASE_MS = 5000;  // prazo para um bloco voltar antes de ser reatribuído
+const LEASE_BASE_MS = Number(process.env.MUTIRAO_LEASE_MS) || 5000; // prazo para um bloco voltar antes de ser reatribuído
 const STALL_MS = 5000;       // quem estourou um prazo fica de fora por este tempo
 
 function label(index) {
@@ -46,41 +46,68 @@ class Coordinator {
 
   // ---------- clientes ----------
   hello(socket, msg = {}) {
-    const role = msg.role === 'host' ? 'host' : 'vol';
+    let role = msg.role === 'host' ? 'host' : 'vol';
+    const key = String(msg.key || socket.id).slice(0, 64);
     let index;
     if (role === 'host') {
       index = 0;
-      for (const c of this.clients.values()) {
-        if (c.role === 'host' && c.sid !== socket.id) {
-          c.role = 'viewer';
-          this.requeueAll(c);
-          this.io.to(c.sid).emit('role', { role: 'viewer' });
-        }
-      }
+      // Só existe um painel principal. Um painel novo NÃO toma o lugar de quem já
+      // está no controle (antes, abrir o link principal em outro aparelho roubava o
+      // host e a rodada "sozinho" travava). Exceção: o mesmo navegador reconectando.
+      const current = this.host();
+      if (current && current.sid !== socket.id && current.key !== key && !msg.claim) role = 'standby';
+      else if (current && current.sid !== socket.id) this.demote(current);
     } else {
-      const key = String(msg.key || socket.id).slice(0, 64);
       if (!this.keyIndex.has(key)) this.keyIndex.set(key, this.nextIndex++);
       index = this.keyIndex.get(key);
     }
     const prev = this.clients.get(socket.id);
     const c = {
-      sid: socket.id, role, index, label: label(index),
+      sid: socket.id, key, role, index, label: label(index),
       name: String(msg.name || '').trim().slice(0, 24),
       type: deviceType(msg.ua || socket.handshake.headers['user-agent']),
-      threads: role === 'host' ? 1 : Math.max(1, Math.min(16, msg.threads | 0 || 1)),
-      active: role === 'host' ? true : !!msg.active,
+      threads: role === 'vol' ? Math.max(1, Math.min(16, msg.threads | 0 || 1)) : 1,
+      active: role === 'vol' ? !!msg.active : true,
       inflight: new Set(), stalledUntil: 0,
       totalTiles: prev ? prev.totalTiles : 0,
       joinedAt: Date.now(),
     };
     if (role === 'vol' && c.name.length < 2) c.name = 'Voluntário ' + c.label;
     this.clients.set(socket.id, c);
-    socket.join(role === 'host' ? 'dash' : 'vol');
+    socket.join(role === 'vol' ? 'vol' : 'dash');
     socket.emit('welcome', { role, index, label: c.label, threads: c.threads });
-    if (role === 'host') this.sendSnapshot(socket);
+    if (role !== 'vol') this.sendSnapshot(socket);
     this.sendJobTo(socket, c);
     this.roster();
     this.dispatch();
+  }
+
+  host() {
+    for (const c of this.clients.values()) if (c.role === 'host') return c;
+    return null;
+  }
+
+  demote(c) {
+    c.role = 'standby';
+    this.requeueAll(c);
+    this.io.to(c.sid).emit('role', { role: 'standby' });
+  }
+
+  promote(c) {
+    c.role = 'host';
+    c.stalledUntil = 0;
+    this.io.to(c.sid).emit('role', { role: 'host' });
+    this.roster();
+    this.dispatch();
+  }
+
+  // Um painel em espera pede para virar o principal (botão "Assumir").
+  claim(sid) {
+    const c = this.clients.get(sid);
+    if (!c || c.role !== 'standby') return;
+    const current = this.host();
+    if (current) this.demote(current);
+    this.promote(c);
   }
 
   viewer(socket) {
@@ -108,6 +135,10 @@ class Coordinator {
     if (!c) return;
     this.requeueAll(c);
     this.clients.delete(sid);
+    if (c.role === 'host') {
+      const next = [...this.clients.values()].filter(x => x.role === 'standby').sort((a, b) => a.joinedAt - b.joinedAt)[0];
+      if (next) this.promote(next);
+    }
     this.roster();
     this.dispatch();
   }
@@ -172,7 +203,7 @@ class Coordinator {
 
   eligible(c, now) {
     const j = this.job;
-    if (!j || j.finishedAt || !c.active || c.role === 'viewer') return false;
+    if (!j || j.finishedAt || !c.active || c.role === 'viewer' || c.role === 'standby') return false;
     if (c.stalledUntil > now) return false;
     return j.mode === 'mutirao' || c.role === 'host';
   }
@@ -241,18 +272,19 @@ class Coordinator {
     const j = this.job;
     if (!j || j.finishedAt) return;
     const now = Date.now();
-    const lease = LEASE_BASE_MS + j.params.tileMs * PREFETCH * 2;
+    const lease = Number(process.env.MUTIRAO_LEASE_TOTAL_MS) || (LEASE_BASE_MS + j.params.tileMs * PREFETCH * 2);
     let changed = false;
     for (const [id, a] of j.assigned) {
       if (now - a.at < lease || j.done[id]) continue;
       j.assigned.delete(id);
       const c = this.clients.get(a.sid);
-      if (c) { c.inflight.delete(id); c.stalledUntil = now + STALL_MS; }
+      if (c) { c.inflight.delete(id); if (c.role === 'vol') c.stalledUntil = now + STALL_MS; }
       j.queue.unshift(id);
       j.reassigned++;
       changed = true;
     }
-    if (changed) { this.dispatch(); this.roster(); }
+    if (changed) this.roster();
+    this.dispatch();
   }
 
   finish() {
@@ -319,7 +351,7 @@ class Coordinator {
       this.rosterTimer = null;
       const j = this.job;
       const list = [...this.clients.values()]
-        .filter(c => c.role !== 'viewer')
+        .filter(c => c.role === 'host' || c.role === 'vol')
         .map(c => {
           const p = j && j.participants.get(c.index);
           return {

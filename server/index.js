@@ -59,6 +59,7 @@ app.get('/api/runs.csv', (req, res) => {
 io.on('connection', socket => {
   socket.on('hello', msg => coord.hello(socket, msg));
   socket.on('viewer', () => coord.viewer(socket));
+  socket.on('claim', () => coord.claim(socket.id));
   socket.on('active', on => coord.setActive(socket.id, on));
   socket.on('name', name => coord.setName(socket.id, name));
   socket.on('result', msg => coord.result(socket.id, msg));
