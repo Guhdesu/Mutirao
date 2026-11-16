@@ -95,7 +95,7 @@ socket.on('jobDone', (run) => {
   renderTimeline();
 });
 
-socket.on('roster', (r) => { roster = r; renderRoster(); });
+socket.on('roster', (r) => { roster = r; renderRoster(); renderTimeline(); });
 
 // ---------- imagem ----------
 function buildTiles(p) {
@@ -299,67 +299,134 @@ function renderLegend() {
 
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
-// ---------- linha do tempo ----------
+// ---------- placar + linha do tempo ----------
+// Cada linha é um aparelho, ordenado por quem calculou mais blocos.
+// A faixa mostra quando ele estava trabalhando; à direita, blocos e % da imagem.
 const tl = $('tl'), tctx = tl.getContext('2d');
+const TOP_N = 10;
+function fitText(text, maxW) {
+  if (tctx.measureText(text).width <= maxW) return text;
+  while (text.length > 1 && tctx.measureText(text + '…').width > maxW) text = text.slice(0, -1);
+  return text + '…';
+}
 function renderTimeline() {
   const dpr = window.devicePixelRatio || 1;
   const cssW = tl.clientWidth || 600;
-  const rowsData = [...spans.entries()].sort((a, b) => a[0] - b[0]);
+  const names = new Map((roster.clients || []).map(c => [c.index, c.name]));
+  const ranked = [...spans.entries()]
+    .map(([idx, r]) => ({ idx, label: r.label, items: r.items, n: r.items.length, name: idx === 0 ? 'Notebook (host)' : (names.get(idx) || r.label) }))
+    .sort((a, b) => (b.n - a.n) || (a.idx - b.idx));
+  const shown = ranked.slice(0, TOP_N);
+  const rest = ranked.slice(TOP_N);
+  const totalTiles = tilesInfo.length || 576;
   const load = job ? job.params.load : currentLoad();
   const tileMs = job ? job.params.tileMs : +$('tileMs').value;
   const solo = lastOf('sozinho', load, tileMs);
   const showSolo = solo && job && job.mode === 'mutirao';
-  const nRows = rowsData.length + (showSolo ? 1 : 0);
-  const rowH = Math.max(8, Math.min(24, Math.floor(250 / Math.max(1, nRows))));
-  const labelW = 92, top = 4, axisH = 22;
-  const cssH = Math.max(120, top + nRows * (rowH + 4) + axisH + 6);
+  const nRows = shown.length + (rest.length ? 1 : 0) + (showSolo ? 1 : 0);
+  const rowH = 22, gap = 6, top = 4, axisH = 22;
+  const labelW = Math.min(190, cssW * 0.34), rightW = 78;
+  const cssH = Math.max(140, top + nRows * (rowH + gap) + axisH + 6);
   tl.style.height = cssH + 'px';
   tl.width = Math.round(cssW * dpr); tl.height = Math.round(cssH * dpr);
   tctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   tctx.clearRect(0, 0, cssW, cssH);
   const now = elapsed();
   const maxT = Math.max(1000, now, showSolo ? solo.durationMs : 0);
-  const plotW = cssW - labelW - 8;
+  const plotW = cssW - labelW - rightW - 12;
   const X = (t) => labelW + (t / maxT) * plotW;
-  tctx.font = '400 12px Lexend, sans-serif';
+  const MONO = '"IBM Plex Mono", monospace';
   tctx.textBaseline = 'middle';
   let y = top;
+
+  const right = (text, color, yy) => {
+    tctx.textAlign = 'right';
+    tctx.fillStyle = color;
+    tctx.fillText(text, cssW, yy);
+    tctx.textAlign = 'left';
+  };
+
   if (showSolo) {
+    tctx.font = '400 13px Lexend, sans-serif';
     tctx.fillStyle = '#9AA6A6';
-    tctx.fillText('Sozinho', 0, y + rowH / 2);
+    tctx.fillText('Sozinho (ref.)', 0, y + rowH / 2);
     tctx.fillStyle = '#2E3E3F';
     tctx.fillRect(labelW, y, X(solo.durationMs) - labelW, rowH);
+    tctx.font = `500 12px ${MONO}`;
     tctx.fillStyle = '#F1F4F3';
-    tctx.font = '500 12px "IBM Plex Mono", monospace';
-    if (rowH >= 12) tctx.fillText(secs(solo.durationMs), labelW + 6, y + rowH / 2 + 1);
-    tctx.font = '400 12px Lexend, sans-serif';
-    y += rowH + 4;
+    tctx.fillText(secs(solo.durationMs), labelW + 6, y + rowH / 2 + 1);
+    y += rowH + gap;
   }
-  for (const [idx, r] of rowsData) {
-    tctx.fillStyle = '#9AA6A6';
-    if (rowH >= 10) tctx.fillText(idx === 0 ? 'A · host' : r.label, 0, y + rowH / 2);
+
+  shown.forEach((r, k) => {
+    const cy = y + rowH / 2;
+    // posição
+    tctx.font = `500 13px ${MONO}`;
+    tctx.fillStyle = k === 0 ? '#5CCB98' : '#66736F';
+    tctx.fillText((k + 1) + 'º', 0, cy + 1);
+    // letra do aparelho
+    tctx.fillStyle = deviceColor(r.idx);
+    tctx.fillRect(30, y + 1, 26, rowH - 2);
+    tctx.fillStyle = '#0B1216';
+    tctx.textAlign = 'center';
+    tctx.font = `500 ${r.label.length > 1 ? 11 : 13}px ${MONO}`;
+    tctx.fillText(r.label, 43, cy + 1);
+    tctx.textAlign = 'left';
+    // nome
+    tctx.font = `${k === 0 ? 500 : 400} 13px Lexend, sans-serif`;
+    tctx.fillStyle = '#F1F4F3';
+    tctx.fillText(fitText(r.name, labelW - 70), 64, cy);
+    // faixa de atividade
     tctx.fillStyle = 'rgba(255,255,255,0.03)';
     tctx.fillRect(labelW, y, plotW, rowH);
-    tctx.fillStyle = deviceColor(idx);
-    for (const [s, e] of r.items) {
-      const x0 = X(s), x1 = Math.max(x0 + 1, X(e) - 0.5);
+    tctx.fillStyle = deviceColor(r.idx);
+    for (const [s0, e0] of r.items) {
+      const x0 = X(s0), x1 = Math.max(x0 + 1, X(e0) - 0.5);
       tctx.fillRect(x0, y, x1 - x0, rowH);
     }
-    y += rowH + 4;
+    // blocos e participação
+    tctx.font = `500 13px ${MONO}`;
+    right(String(r.n), '#F1F4F3', cy + 1);
+    tctx.font = `500 11px ${MONO}`;
+    tctx.fillStyle = '#66736F';
+    tctx.textAlign = 'right';
+    tctx.fillText(fmt(r.n / totalTiles * 100, 0) + '%', cssW - 38, cy + 1);
+    tctx.textAlign = 'left';
+    y += rowH + gap;
+  });
+
+  if (rest.length) {
+    const cy = y + rowH / 2, n = rest.reduce((s1, r) => s1 + r.n, 0);
+    tctx.font = '400 13px Lexend, sans-serif';
+    tctx.fillStyle = '#9AA6A6';
+    tctx.fillText(`+ ${rest.length} aparelhos`, 30, cy);
+    tctx.fillStyle = 'rgba(255,255,255,0.03)';
+    tctx.fillRect(labelW, y, plotW, rowH);
+    tctx.fillStyle = '#4A5A5B';
+    for (const r of rest) for (const [s0, e0] of r.items) {
+      const x0 = X(s0), x1 = Math.max(x0 + 1, X(e0) - 0.5);
+      tctx.fillRect(x0, y, x1 - x0, rowH);
+    }
+    tctx.font = `500 13px ${MONO}`;
+    right(String(n), '#9AA6A6', cy + 1);
+    y += rowH + gap;
   }
-  // eixo
+
+  // eixo de tempo
   tctx.strokeStyle = '#22302F';
   tctx.beginPath(); tctx.moveTo(labelW, y + 2.5); tctx.lineTo(labelW + plotW, y + 2.5); tctx.stroke();
   const step = niceStep(maxT / 1000);
   tctx.fillStyle = '#66736F';
-  tctx.font = '500 11px "IBM Plex Mono", monospace';
+  tctx.font = `500 11px ${MONO}`;
   tctx.textAlign = 'center';
-  for (let s = 0; s * 1000 <= maxT + 1; s += step) tctx.fillText(fmt(s, step < 1 ? 1 : 0) + ' s', Math.min(X(s * 1000), cssW - 16), y + 14);
+  for (let t = 0; t * 1000 <= maxT + 1; t += step) tctx.fillText(fmt(t, step < 1 ? 1 : 0) + ' s', X(t * 1000), y + 14);
+  tctx.textAlign = 'right';
+  tctx.fillText('blocos', cssW, y + 14);
   tctx.textAlign = 'left';
-  if (!nRows) {
+  if (!shown.length) {
     tctx.fillStyle = '#66736F';
     tctx.font = '400 13px Lexend, sans-serif';
-    tctx.fillText('Cada faixa vai mostrar quando cada dispositivo estava calculando.', labelW, 40);
+    tctx.fillText('Quem calcular mais blocos aparece no topo.', 0, 40);
   }
 }
 function niceStep(totalS) {
